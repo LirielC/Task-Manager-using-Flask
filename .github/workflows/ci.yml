@@ -36,8 +36,74 @@ jobs:
       - name: Run tests
         run: pytest
 
-  build:
+  sast_bandit:
     needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+
+      - name: Create report directory
+        run: mkdir -p reports/bandit
+
+      - name: Run Bandit JSON report
+        run: bandit -r . -f json -o reports/bandit/bandit-report.json || true
+
+      - name: Run Bandit HTML report
+        run: bandit -r . -f html -o reports/bandit/bandit-report.html || true
+
+      - name: Upload Bandit reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-reports
+          path: reports/bandit
+          if-no-files-found: warn
+
+  dependency_check:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create report directory
+        run: mkdir -p reports/dependency-check
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "task-manager-flask"
+          path: "."
+          format: "HTML"
+          out: "reports/dependency-check"
+          args: >
+            --enableRetired
+            --noupdate
+
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports/dependency-check
+          if-no-files-found: warn
+
+  build:
+    needs:
+      - test
+      - sast_bandit
+      - dependency_check
     runs-on: ubuntu-latest
 
     steps:

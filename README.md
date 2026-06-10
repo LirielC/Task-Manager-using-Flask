@@ -114,7 +114,11 @@ O workflow executa em `push` e `pull_request` nas branches:
 Jobs configurados:
 
 - `test`: usa `ubuntu-latest`, faz checkout do código, configura Python 3.11, atualiza o `pip`, instala `requirements.txt` e executa `pytest`.
-- `build`: depende do job `test`, faz checkout do código e executa `docker build -t task-manager-flask:latest .`.
+- `sast_bandit`: depende de `test`, executa SAST com Bandit e publica relatórios JSON e HTML como artifacts.
+- `dependency_check`: depende de `test`, executa análise de dependências com OWASP Dependency-Check e publica relatório HTML como artifact.
+- `build`: depende de `test`, `sast_bandit` e `dependency_check`, faz checkout do código e executa `docker build -t task-manager-flask:latest .`.
+
+Como é um fluxo acadêmico, as etapas de segurança priorizam a geração de relatórios para análise posterior no GitHub Actions.
 
 O antigo pipeline GitLab (`.gitlab-ci.yml`) foi removido para evitar ambiguidade, já que a entrega será feita com GitHub Actions.
 
@@ -155,6 +159,22 @@ Análise estática de segurança:
 ```powershell
 bandit -r .
 ```
+
+Para instalar e rodar o Bandit localmente:
+
+```powershell
+pip install bandit
+bandit -r . -f json -o bandit-report.json
+bandit -r . -f html -o bandit-report.html
+```
+
+Análise de dependências local via Docker:
+
+```powershell
+docker run --rm -v "${PWD}:/src" -v "${PWD}/dependency-check-report:/report" owasp/dependency-check --scan /src --format HTML --out /report
+```
+
+No GitHub Actions, os relatórios de Bandit e OWASP Dependency-Check ficam disponíveis como artifacts da execução do workflow.
 
 Dependências:
 

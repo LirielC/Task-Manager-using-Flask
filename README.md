@@ -137,6 +137,7 @@ A Etapa 6 adiciona entrega contínua simulada no GitHub Actions, adaptando os co
 
 Fluxo configurado:
 
+- No GitHub, Pull Request equivale ao conceito de Merge Request.
 - Pull Requests executam o job `review_app`, que representa um ambiente temporário de revisão.
 - A branch `staging` executa o job `deploy_stage`, que representa o ambiente de homologação.
 - Após o deploy de stage, o job `dast_zap` executa o OWASP ZAP baseline scan contra a aplicação em `http://localhost:8080`.

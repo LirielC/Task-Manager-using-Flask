@@ -112,3 +112,124 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t task-manager-flask:latest .
+
+  review_app:
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t task-manager-flask:latest .
+
+      - name: Start review app
+        run: docker run -d --name task-manager-flask-review -p 8080:8080 task-manager-flask:latest
+
+      - name: Wait for application
+        run: |
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8080 >/dev/null; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker logs task-manager-flask-review
+          exit 1
+
+      - name: Validate review app
+        run: curl -fsS http://localhost:8080
+
+      - name: Stop review app
+        if: always()
+        run: |
+          docker stop task-manager-flask-review || true
+          docker rm task-manager-flask-review || true
+
+  deploy_stage:
+    if: github.ref == 'refs/heads/staging'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: stage
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t task-manager-flask:latest .
+
+      - name: Start stage app
+        run: docker run -d --name task-manager-flask-stage -p 8080:8080 task-manager-flask:latest
+
+      - name: Wait for stage application
+        run: |
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8080 >/dev/null; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker logs task-manager-flask-stage
+          exit 1
+
+      - name: Validate stage app
+        run: curl -fsS http://localhost:8080
+
+      - name: Stop stage app
+        if: always()
+        run: |
+          docker stop task-manager-flask-stage || true
+          docker rm task-manager-flask-stage || true
+
+  dast_zap:
+    if: github.ref == 'refs/heads/staging'
+    needs: deploy_stage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create report directory
+        run: mkdir -p reports/zap
+
+      - name: Build Docker image
+        run: docker build -t task-manager-flask:latest .
+
+      - name: Start app for DAST
+        run: docker run -d --name task-manager-flask-zap -p 8080:8080 task-manager-flask:latest
+
+      - name: Wait for application
+        run: |
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8080 >/dev/null; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker logs task-manager-flask-zap
+          exit 1
+
+      - name: Run OWASP ZAP baseline scan
+        run: |
+          docker run --rm -t \
+            --network host \
+            -v "$PWD:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8080 -r reports/zap/zap-report.html || true
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: reports/zap
+          if-no-files-found: warn
+
+      - name: Stop app after DAST
+        if: always()
+        run: |
+          docker stop task-manager-flask-zap || true
+          docker rm task-manager-flask-zap || true

@@ -81,6 +81,12 @@ docker compose up --build
 
 No container a aplicação escuta em `0.0.0.0:8080`.
 
+Validação da configuração atual para container:
+
+- o [Dockerfile](/C:/Users/Ryzen/Task-Manager-using-Flask/Dockerfile) define `PORT=8080`;
+- o [Dockerfile](/C:/Users/Ryzen/Task-Manager-using-Flask/Dockerfile) define `FLASK_RUN_HOST=0.0.0.0`;
+- o [run.py](/C:/Users/Ryzen/Task-Manager-using-Flask/todo_project/run.py) lê essas variáveis e sobe a aplicação em `0.0.0.0:8080` no container.
+
 ## Testes
 
 ```powershell
@@ -117,10 +123,30 @@ Jobs configurados:
 - `sast_bandit`: depende de `test`, executa SAST com Bandit e publica relatórios JSON e HTML como artifacts.
 - `dependency_check`: depende de `test`, executa análise de dependências com OWASP Dependency-Check e publica relatório HTML como artifact.
 - `build`: depende de `test`, `sast_bandit` e `dependency_check`, faz checkout do código e executa `docker build -t task-manager-flask:latest .`.
+- `review_app`: executa apenas em Pull Requests, depende de `build`, sobe a aplicação em Docker no runner e valida `http://localhost:8080` como ambiente temporário de revisão.
+- `deploy_stage`: executa apenas na branch `staging`, depende de `build`, usa o environment `stage`, sobe a aplicação em Docker no runner e valida `http://localhost:8080`.
+- `dast_zap`: executa apenas na branch `staging`, depende de `deploy_stage`, sobe a aplicação no runner, executa OWASP ZAP baseline scan e publica o relatório HTML como artifact.
 
 Como é um fluxo acadêmico, as etapas de segurança priorizam a geração de relatórios para análise posterior no GitHub Actions.
 
 O antigo pipeline GitLab (`.gitlab-ci.yml`) foi removido para evitar ambiguidade, já que a entrega será feita com GitHub Actions.
+
+## Etapa 6 — Entrega Contínua (CD)
+
+A Etapa 6 adiciona entrega contínua simulada no GitHub Actions, adaptando os conceitos de review app, stage e DAST ao runner do GitHub.
+
+Fluxo configurado:
+
+- Pull Requests executam o job `review_app`, que representa um ambiente temporário de revisão.
+- A branch `staging` executa o job `deploy_stage`, que representa o ambiente de homologação.
+- Após o deploy de stage, o job `dast_zap` executa o OWASP ZAP baseline scan contra a aplicação em `http://localhost:8080`.
+
+Como o pipeline roda em runners efêmeros do GitHub Actions, o ambiente de stage foi simulado com Docker dentro do próprio runner.
+
+Relatórios:
+
+- o OWASP ZAP gera `reports/zap/zap-report.html`;
+- o relatório é publicado como artifact no GitHub Actions para análise posterior.
 
 ## Branches e versionamento
 
@@ -180,6 +206,63 @@ Dependências:
 
 - `requirements.txt` está versionado para instalação reproduzível com `pip install -r requirements.txt`.
 - O projeto pode ser submetido ao OWASP Dependency-Check apontando para a raiz do repositório.
+
+## Etapa 5 — DAST com OWASP ZAP
+
+A Etapa 5 pode ser executada manualmente via Docker usando o OWASP ZAP contra a aplicação rodando localmente em container.
+
+Build da imagem da aplicação:
+
+```powershell
+docker build -t task-manager-flask .
+```
+
+Execução do container da aplicação:
+
+```powershell
+docker run -d --name task-manager-flask -p 8080:8080 task-manager-flask
+```
+
+Verificação do container em execução:
+
+```powershell
+docker ps
+```
+
+Acesso da aplicação no navegador:
+
+```text
+http://localhost:8080
+```
+
+Execução do OWASP ZAP via Docker com relatório HTML salvo em `reports/zap/zap-report.html`:
+
+```powershell
+docker run --rm -t -v "${PWD}:/zap/wrk" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:8080 -r reports/zap/zap-report.html
+```
+
+Se a pasta ainda não existir, ela já foi preparada no repositório em `reports/zap/`.
+
+Para abrir o relatório no Windows:
+
+```powershell
+start .\reports\zap\zap-report.html
+```
+
+Se quiser encerrar o container da aplicação depois da análise:
+
+```powershell
+docker stop task-manager-flask
+docker rm task-manager-flask
+```
+
+O que tirar print para o relatório:
+
+- saída do `docker ps` mostrando o container `task-manager-flask`;
+- aplicação aberta no navegador em `http://localhost:8080`;
+- execução do comando do OWASP ZAP no terminal;
+- arquivo `reports/zap/zap-report.html` gerado no projeto;
+- relatório HTML aberto no navegador.
 
 ## Funcionalidades principais
 

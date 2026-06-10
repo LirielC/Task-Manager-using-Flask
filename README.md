@@ -271,3 +271,4 @@ O que tirar print para o relatório:
 - cadastro de usuários;
 - criação, listagem, edição e exclusão de tarefas;
 - pesquisa de tarefas por palavra-chave no conteúdo.
+- Validação do fluxo de review app via Pull Request.

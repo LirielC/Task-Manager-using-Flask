@@ -99,11 +99,23 @@ jobs:
           path: reports/dependency-check
           if-no-files-found: warn
 
+  monitoring_check:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate monitoring compose file
+        run: docker compose -f docker-compose.monitoring.yml config
+
   build:
     needs:
       - test
       - sast_bandit
       - dependency_check
+      - monitoring_check
     runs-on: ubuntu-latest
 
     steps:

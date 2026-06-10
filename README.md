@@ -265,6 +265,147 @@ O que tirar print para o relatório:
 - arquivo `reports/zap/zap-report.html` gerado no projeto;
 - relatório HTML aberto no navegador.
 
+## Etapa 7 — Feedback e Monitoramento
+
+A Etapa 7 adiciona uma stack leve de observabilidade para analisar os logs já emitidos pela aplicação Flask e permitir alertas de segurança quase em tempo real.
+
+Ferramentas analisadas:
+
+- `Grafana`: visualização de logs, dashboards e alertas.
+- `Loki`: armazenamento e indexação de logs com foco em observabilidade.
+- `Promtail`: coleta e envio dos logs dos containers.
+- `ELK`: opção robusta, porém mais pesada para o escopo desta aplicação.
+- `Fluent Bit + OpenSearch`: alternativa viável, mas com maior esforço operacional para este estudo de caso.
+
+Por que `Grafana`, `Loki` e `Promtail` foram escolhidos:
+
+- a aplicação já envia logs estruturados para `stdout`, então não foi necessário alterar regra de negócio;
+- o `Promtail` coleta os logs do container `task-manager-flask` via Docker API;
+- o `Loki` armazena os eventos e permite consultas eficientes por labels e conteúdo;
+- o `Grafana` facilita dashboards, exploração dos logs e definição de alertas;
+- a stack é leve e adequada para aplicações containerizadas.
+
+Arquivos de monitoramento:
+
+- `docker-compose.monitoring.yml`
+- `monitoring/loki/config.yml`
+- `monitoring/promtail/config.yml`
+- `monitoring/grafana/provisioning/datasources/loki.yml`
+
+Como subir o monitoramento:
+
+```powershell
+docker compose -f docker-compose.monitoring.yml up -d
+docker ps
+```
+
+Neste projeto, o `docker-compose.monitoring.yml` sobe por padrão apenas `Grafana`, `Loki` e `Promtail`.
+
+A aplicação pode estar:
+
+- já rodando separadamente em um container chamado `task-manager-flask`; ou
+- sendo subida pelo próprio compose de monitoramento com o profile `app`.
+
+Se você quiser subir também a aplicação pela stack de monitoramento:
+
+```powershell
+docker compose -f docker-compose.monitoring.yml --profile app up -d
+docker ps
+```
+
+Como acessar:
+
+- Grafana: `http://localhost:3000`
+- Loki: `http://localhost:3100`
+
+Credenciais iniciais do Grafana:
+
+- usuário: `admin`
+- senha: `admin`
+
+Fluxo da coleta:
+
+- a aplicação Flask gera logs em `stdout`;
+- o container Docker mantém esses logs disponíveis;
+- o `Promtail` coleta os eventos do container `task-manager-flask`;
+- o `Loki` recebe e armazena os logs;
+- o `Grafana` consulta o Loki e pode gerar dashboards e alertas.
+
+Eventos de log monitorados:
+
+- `LOGIN_FALHA`
+- `LOGIN_SUCESSO`
+- `ACESSO_NAO_AUTENTICADO`
+- `TAREFA_CRIADA`
+- `TAREFA_EDITADA`
+- `TAREFA_EXCLUIDA`
+- `PESQUISA_REALIZADA`
+- `ERRO_INTERNO`
+
+Eventos de segurança que devem gerar alerta:
+
+- repetição de `LOGIN_FALHA` acima do limiar definido;
+- aumento anormal de `ACESSO_NAO_AUTENTICADO`;
+- ocorrência de `ERRO_INTERNO`;
+- sequência incomum de `TAREFA_EXCLUIDA`, indicando possível abuso.
+
+Regra de alerta conceitual:
+
+- se houver mais de `5` eventos `LOGIN_FALHA` para o mesmo usuário ou IP em `1 minuto`, considerar possível tentativa de força bruta.
+
+Exemplo conceitual de consulta LogQL por IP:
+
+```logql
+sum by (ip) (
+  count_over_time({container="task-manager-flask"} |= "event=LOGIN_FALHA" [1m])
+) > 5
+```
+
+Exemplo conceitual de consulta LogQL por usuário:
+
+```logql
+sum by (user) (
+  count_over_time({container="task-manager-flask"} |= "event=LOGIN_FALHA" [1m])
+) > 5
+```
+
+Validação no GitHub Actions:
+
+- foi adicionado o job `monitoring_check`;
+- ele executa `docker compose -f docker-compose.monitoring.yml config`;
+- o objetivo é validar a sintaxe do compose de monitoramento sem subir o Grafana no runner.
+
+Comandos solicitados para documentação:
+
+```powershell
+docker compose -f docker-compose.monitoring.yml up -d
+docker ps
+```
+
+Endereços solicitados:
+
+```text
+Grafana: http://localhost:3000
+Loki: http://localhost:3100
+```
+
+Comandos de commit:
+
+```powershell
+git add .
+git commit -m "Adiciona monitoramento com Grafana Loki e Promtail"
+git push origin develop
+```
+
+Prints necessários para o relatório:
+
+- terminal com `docker compose -f docker-compose.monitoring.yml up -d`;
+- terminal com `docker ps` mostrando `task-manager-flask`, `grafana`, `loki` e `promtail`;
+- Grafana aberto em `http://localhost:3000`;
+- datasource Loki configurado no Grafana;
+- consulta no Grafana exibindo eventos como `LOGIN_FALHA` e `LOGIN_SUCESSO`;
+- evidência da regra conceitual de alerta para força bruta.
+
 ## Funcionalidades principais
 
 - login e logout;

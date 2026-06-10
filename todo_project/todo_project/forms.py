@@ -50,9 +50,19 @@ class UpdateUserPassword(FlaskForm):
 
 
 class TaskForm(FlaskForm):
-    task_name = StringField(label='Task Description', validators=[DataRequired()])
+    task_name = StringField(label='Task Description', validators=[DataRequired(), Length(max=100)])
     submit = SubmitField(label='Add Task')
 
+
 class UpdateTaskForm(FlaskForm):
-    task_name = StringField(label='Update Task Description', validators=[DataRequired()])
+    task_name = StringField(label='Update Task Description', validators=[DataRequired(), Length(max=100)])
     submit = SubmitField(label='Save Changes')
+
+
+class SearchTaskForm(FlaskForm):
+    keyword = StringField(label='Search Tasks', validators=[DataRequired(), Length(min=1, max=100)])
+    submit = SubmitField(label='Search')
+
+
+class DeleteTaskForm(FlaskForm):
+    submit = SubmitField(label='Delete')

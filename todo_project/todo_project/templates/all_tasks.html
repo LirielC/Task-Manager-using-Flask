@@ -2,8 +2,25 @@
 
 {% block content %}
 
+<div class="content-section mb-3">
+    <form method="POST" action="{{ url_for('search_tasks') }}">
+        {{ search_form.hidden_tag() }}
+        <div class="form-group">
+            {{ search_form.keyword.label(class="form-control-label") }}
+            {{ search_form.keyword(class="form-control", value=search_term, placeholder="Search by task keyword") }}
+        </div>
+        <div class="form-group mb-0">
+            {{ search_form.submit(class="btn btn-outline-primary btn-sm") }}
+            <a href="{{ url_for('all_tasks') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+    </form>
+</div>
+
 <!-- View All Tasks -->
 {% if tasks %}
+{% if search_term %}
+<p class="text-muted">Results for "{{ search_term }}"</p>
+{% endif %}
 <table class="table table-bordered">
     <thead>
         <tr class="text-center">
@@ -23,7 +40,10 @@
             </td>
             
             <td class="text-center">
-                <a href="{{ url_for('delete_task', task_id=task.id) }}" class="btn btn-outline-danger btn-sm">Delete</a>
+                <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}">
+                    {{ delete_form.hidden_tag() }}
+                    {{ delete_form.submit(class="btn btn-outline-danger btn-sm") }}
+                </form>
             </td>
         </tr>
         {% endfor %}
@@ -32,7 +52,11 @@
 {% else %}
 <legend>No Tasks to Display</legend>
 <p class="text-muted">
+    {% if search_term %}
+    No tasks matched your search. <a href="{{ url_for('all_tasks') }}">View all tasks</a>
+    {% else %}
     Click <a href="{{ url_for('add_task') }}">here</a> to Add Task
+    {% endif %}
 </p>
 {% endif %}
 

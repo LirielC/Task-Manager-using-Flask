@@ -5,6 +5,31 @@ def test_login_page_responds(client):
     assert b"Login" in response.data
 
 
+def test_security_headers_are_present(client):
+    response = client.get("/login")
+
+    assert response.headers["Content-Security-Policy"].startswith("default-src 'self'")
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert response.headers["Cross-Origin-Resource-Policy"] == "same-origin"
+    assert response.headers["Cross-Origin-Embedder-Policy"] == "require-corp"
+    assert "camera=()" in response.headers["Permissions-Policy"]
+
+
+def test_session_cookie_sets_samesite(client):
+    response = client.post(
+        "/login",
+        data={"username": "tester", "password": "validpassword"},
+        follow_redirects=False,
+    )
+
+    cookie_header = response.headers["Set-Cookie"]
+
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=Lax" in cookie_header
+
+
 def test_protected_route_redirects_when_not_authenticated(client):
     response = client.get("/all_tasks", follow_redirects=False)
 
